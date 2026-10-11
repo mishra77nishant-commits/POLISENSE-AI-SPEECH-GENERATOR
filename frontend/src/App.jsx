@@ -4,7 +4,7 @@ import "./manifesto_styles.css";
 
 const API_BASE_URL = "https://polisense-ai-speech-generator.onrender.com/api/speech";
 
-const MANIFESTO_API_URL = import.meta.env.VITE_MANIFESTO_API_URL || "http://127.0.0.1:8000";
+const MANIFESTO_API_URL = (import.meta.env.VITE_MANIFESTO_API_URL || "https://polisense-manifesto-backend.onrender.com").replace(/\/+$/, "");
 
 function humanizeManifestoKey(key) {
   return String(key)
