@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ manifesto.title }}</title>
+    <link rel="stylesheet" href="../static/styles.css">
+</head>
+
+<body>
+
+    <!-- COVER PAGE -->
+    <section class="cover">
+        <div class="cover-top">
+            <p class="eyebrow">OFFICIAL POLICY DOCUMENT</p>
+            <div class="cover-line"></div>
+        </div>
+
+        <div class="cover-content">
+            <p class="party-name">{{ party_name }}</p>
+
+            {% if party_tagline %}
+            <p class="tagline">{{ party_tagline }}</p>
+            {% endif %}
+
+            <div class="cover-divider"></div>
+
+            <h1>{{ manifesto.title }}</h1>
+
+            <p class="leader">
+                Presented by <strong>{{ leader_name }}</strong>
+            </p>
+
+            <div class="location-box">
+                <p><strong>Election:</strong> {{ election_type }}</p>
+                <p><strong>State:</strong> {{ state }}</p>
+
+                {% if constituency %}
+                <p><strong>Constituency:</strong> {{ constituency }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="cover-footer">
+            <p>A VISION FOR DEVELOPMENT AND PUBLIC WELFARE</p>
+        </div>
+    </section>
+
+
+    <!-- INTRODUCTION -->
+    <section class="content-page">
+        <header class="page-header">
+            <span>{{ party_name }}</span>
+            <span>MANIFESTO</span>
+        </header>
+
+        <div class="section-label">OUR VISION</div>
+
+        <h2>{{ manifesto.title }}</h2>
+
+        <p class="introduction">
+            {{ manifesto.introduction }}
+        </p>
+
+        <div class="vision-box">
+            <h3>Our Vision</h3>
+            <p>{{ vision }}</p>
+        </div>
+
+        <h2 class="section-heading">Our Key Priorities</h2>
+
+        <div class="priority-grid">
+            {% for issue in key_issues %}
+            <div class="priority-card">
+                <span class="priority-number">
+                    {{ "%02d"|format(loop.index) }}
+                </span>
+                <span>{{ issue }}</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        <footer class="page-footer">
+            <span>{{ party_name }}</span>
+            <span>POLICY & DEVELOPMENT</span>
+        </footer>
+    </section>
+
+
+    <!-- POLICY SECTIONS -->
+    <section class="content-page">
+        <header class="page-header">
+            <span>{{ party_name }}</span>
+            <span>POLICY FRAMEWORK</span>
+        </header>
+
+        <div class="section-label">ACTION PLAN</div>
+
+        <h2>Our Commitments and Proposals</h2>
+
+        {% for section in manifesto.sections %}
+        <article class="policy-section">
+            <h3>
+                <span class="policy-number">
+                    {{ "%02d"|format(loop.index) }}
+                </span>
+                {{ section.heading }}
+            </h3>
+
+            <p>{{ section.content }}</p>
+        </article>
+        {% endfor %}
+
+        <div class="conclusion-box">
+            <h3>Moving Forward</h3>
+            <p>{{ manifesto.conclusion }}</p>
+        </div>
+
+        <footer class="page-footer">
+            <span>{{ party_name }}</span>
+            <span>{{ state }}</span>
+        </footer>
+    </section>
+
+</body>
+</html>

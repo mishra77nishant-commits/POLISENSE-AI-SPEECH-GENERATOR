@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+groq
+python-dotenv
+pydantic
+jinja2
+pillow
+reportlab
+requests

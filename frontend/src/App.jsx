@@ -1,9 +1,238 @@
 import { useState } from "react";
 import "./App.css";
+import "./manifesto_styles.css";
 
 const API_BASE_URL = "https://polisense-ai-speech-generator.onrender.com/api/speech";
 
+const MANIFESTO_API_URL = import.meta.env.VITE_MANIFESTO_API_URL || "http://127.0.0.1:8000";
+
+function humanizeManifestoKey(key) {
+  return String(key)
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function normalizeManifesto(payload) {
+  if (payload && typeof payload === "object") return payload;
+  if (typeof payload === "string") {
+    try {
+      const parsed = JSON.parse(payload);
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch {
+      // The backend may return plain text rather than JSON.
+    }
+    return { content: payload };
+  }
+  return { content: String(payload ?? "") };
+}
+
+function flattenManifestoValue(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => flattenManifestoValue(item)).filter(Boolean).join(" • ");
+  }
+  if (value && typeof value === "object") {
+    return Object.entries(value)
+      .map(([key, nestedValue]) => `${humanizeManifestoKey(key)}: ${flattenManifestoValue(nestedValue)}`)
+      .filter((item) => !item.endsWith(": "))
+      .join(" · ");
+  }
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function truncatePreview(value, maxLength = 260) {
+  const text = flattenManifestoValue(value);
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength).trimEnd()}…`;
+}
+
+function ManifestoPage() {
+  const [form, setForm] = useState({
+    leader_name: "", party_name: "", party_tagline: "", election_type: "State Assembly Election",
+    state: "", constituency: "", language: "English", page_count: 3, vision: "",
+    key_issues: "Education\nHealthcare\nEmployment", education: "", healthcare: "",
+    employment: "", infrastructure: "", women_empowerment: "", agriculture: "",
+    environment: "", primary_color: "#174A35"
+  });
+  const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [manifestoError, setManifestoError] = useState("");
+
+  const update = (event) => setForm({ ...form, [event.target.name]: event.target.value });
+
+  const requestBody = () => ({
+    ...form,
+    page_count: Number(form.page_count),
+    key_issues: form.key_issues.split(/\n|,/).map((item) => item.trim()).filter(Boolean)
+  });
+
+  const generate = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setManifestoError("");
+    setResult("");
+    try {
+      const response = await fetch(`${MANIFESTO_API_URL}/generate-manifesto`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody())
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Manifesto generation failed.");
+      setResult(normalizeManifesto(data.manifesto ?? data));
+    } catch (err) {
+      setManifestoError(err.message || "Could not connect to Manifesto backend. Make sure it is running.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const downloadPdf = async () => {
+    setPdfBusy(true);
+    setManifestoError("");
+    try {
+      const response = await fetch(`${MANIFESTO_API_URL}/generate-manifesto-pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody())
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(typeof data.detail === "string" ? data.detail : "PDF download failed.");
+      }
+      const blob = await response.blob();
+      const contentType = response.headers.get("content-type") || "";
+      if (!blob.size) throw new Error("The backend returned an empty PDF. Please try again.");
+      if (!contentType.toLowerCase().includes("application/pdf")) {
+        const errorText = await blob.text();
+        let message = errorText || "The backend did not return a PDF file.";
+        try {
+          const parsed = JSON.parse(errorText);
+          if (typeof parsed.detail === "string") message = parsed.detail;
+        } catch {
+          // Use the returned text if the response is not JSON.
+        }
+        throw new Error(message);
+      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "polisense_manifesto.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      setManifestoError(err.message || "Could not download the PDF.");
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
+  return (
+    <section className="page-content manifesto-page">
+      <div className="page-heading">
+        <div><h1>AI Manifesto Generator</h1><p>Create a structured election manifesto using AI.</p></div>
+        <div className="demo-badge"><span></span> MANIFESTO STUDIO</div>
+      </div>
+      <div className="manifesto-layout">
+        <form className="manifesto-form" onSubmit={generate}>
+          <h2>Manifesto Details</h2>
+          <div className="manifesto-grid">
+            <label>Leader Name<input name="leader_name" value={form.leader_name} onChange={update} minLength={2} required /></label>
+            <label>Party Name<input name="party_name" value={form.party_name} onChange={update} minLength={2} required /></label>
+            <label>Party Tagline<input name="party_tagline" value={form.party_tagline} onChange={update} /></label>
+            <label>Election Type<select name="election_type" value={form.election_type} onChange={update}><option>State Assembly Election</option><option>Lok Sabha Election</option><option>Local Body Election</option><option>Municipal Election</option><option>Student Election</option></select></label>
+            <label>State<input name="state" value={form.state} onChange={update} required /></label>
+            <label>Constituency<input name="constituency" value={form.constituency} onChange={update} /></label>
+            <label>Language<select name="language" value={form.language} onChange={update}><option>English</option><option>Hindi</option><option>Hinglish</option></select></label>
+            <label>Pages<select name="page_count" value={form.page_count} onChange={update}><option value="2">2 pages</option><option value="3">3 pages</option></select></label>
+            <label className="manifesto-wide">Vision<textarea name="vision" value={form.vision} onChange={update} rows="3" required /></label>
+            <label className="manifesto-wide">Key Issues (comma or new-line separated)<textarea name="key_issues" value={form.key_issues} onChange={update} rows="3" required /></label>
+            <label>Education<input name="education" value={form.education} onChange={update} /></label>
+            <label>Healthcare<input name="healthcare" value={form.healthcare} onChange={update} /></label>
+            <label>Employment<input name="employment" value={form.employment} onChange={update} /></label>
+            <label>Infrastructure<input name="infrastructure" value={form.infrastructure} onChange={update} /></label>
+            <label>Women Empowerment<input name="women_empowerment" value={form.women_empowerment} onChange={update} /></label>
+            <label>Agriculture<input name="agriculture" value={form.agriculture} onChange={update} /></label>
+            <label>Environment<input name="environment" value={form.environment} onChange={update} /></label>
+            <label>Primary Color<input name="primary_color" type="color" value={form.primary_color} onChange={update} /></label>
+          </div>
+          <button className="generate-button" type="submit" disabled={busy}>{busy ? "Generating..." : "Generate Manifesto"}</button>
+          <p className="form-note">Connects to your Manifesto backend at {MANIFESTO_API_URL}.</p>
+        </form>
+        <section className="manifesto-result">
+          <h2>Your Manifesto</h2>
+          {manifestoError && <div className="error-message" role="alert">{manifestoError}</div>}
+          {result ? (() => {
+            const title = result.title || `${form.party_name || "Election"} Manifesto`;
+            const subtitle = result.subtitle || form.party_tagline || `${form.state || "Your state"}${form.constituency ? ` · ${form.constituency}` : ""}`;
+            const introduction = result.introduction || result.executive_summary || result.overview || result.content || "";
+            const hiddenKeys = new Set([
+              "title", "subtitle", "introduction", "executive_summary", "overview", "content",
+              "leader_name", "party_name", "party_tagline", "election_type", "state", "constituency",
+              "language", "page_count", "primary_color", "generated_at", "metadata"
+            ]);
+            const sections = Object.entries(result).filter(([key, value]) =>
+              !hiddenKeys.has(key.toLowerCase()) && value !== null && value !== "" && flattenManifestoValue(value)
+            );
+            const previewSections = sections.slice(0, 2);
+            return (
+              <>
+                <button type="button" className="generate-button pdf-download-button" onClick={downloadPdf} disabled={pdfBusy}>
+                  {pdfBusy ? "Preparing PDF..." : "Download Full Manifesto PDF"}
+                </button>
+                <p className="manifesto-download-hint">The full designed manifesto is in the PDF. This is a short preview.</p>
+
+                <div className="manifesto-preview" style={{ "--manifesto-primary": form.primary_color }}>
+                  <div className="manifesto-preview-cover">
+                    <span className="manifesto-preview-kicker">POLISENSE AI · MANIFESTO PREVIEW</span>
+                    <h3>{title}</h3>
+                    {subtitle && <p className="manifesto-preview-subtitle">{subtitle}</p>}
+                    <div className="manifesto-preview-meta">
+                      <span>{form.leader_name || "Candidate / Leader"}</span>
+                      {form.party_name && <span>{form.party_name}</span>}
+                      <span>{form.language} · {form.page_count} pages in PDF</span>
+                    </div>
+                  </div>
+
+                  {introduction && (
+                    <section className="manifesto-preview-section manifesto-intro-card">
+                      <span className="manifesto-section-label">OUR VISION</span>
+                      <h4>Introduction</h4>
+                      <p>{truncatePreview(introduction, 330)}</p>
+                    </section>
+                  )}
+
+                  {previewSections.map(([key, value], index) => (
+                    <section className="manifesto-preview-section manifesto-policy-card" key={key}>
+                      <span className="manifesto-section-label">PRIORITY {String(index + 1).padStart(2, "0")}</span>
+                      <h4>{humanizeManifestoKey(key)}</h4>
+                      <p>{truncatePreview(value, 225)}</p>
+                    </section>
+                  ))}
+
+                  <div className="manifesto-preview-locked">
+                    <div className="manifesto-lock-icon">PDF</div>
+                    <div>
+                      <strong>Full manifesto and policy details</strong>
+                      <p>Detailed commitments, implementation points, expected outcomes, and the complete design are available in the downloaded PDF.</p>
+                    </div>
+                  </div>
+                </div>
+                <p className="form-note">PDF generation uses the details currently entered in the form.</p>
+              </>
+            );
+          })() : <p>Your generated manifesto will appear here.</p>}
+        </section>
+      </div>
+    </section>
+  );
+}
+
 function App() {
+  const [activePage, setActivePage] = useState("speech");
   const [template, setTemplate] = useState("Rally Speech");
   const [topic, setTopic] = useState("");
   const [audience, setAudience] = useState("General Public");
@@ -140,10 +369,14 @@ function App() {
         </div>
 
         <div className="sidebar-label">WORKSPACE</div>
-        <div className="nav-item active">
+        <button type="button" className={`nav-item ${activePage === "speech" ? "active" : ""}`} onClick={() => setActivePage("speech")}>
           <span className="nav-icon">♩</span>
           <span>Speech Generator</span>
-        </div>
+        </button>
+        <button type="button" className={`nav-item ${activePage === "manifesto" ? "active" : ""}`} onClick={() => setActivePage("manifesto")}>
+          <span className="nav-icon">▤</span>
+          <span>Manifesto Generator</span>
+        </button>
 
         <div className="sidebar-footer">
           <span className="status-dot"></span>
@@ -154,7 +387,7 @@ function App() {
       <main className="main">
         <header className="topbar">
           <div className="breadcrumb">
-            Strategy <span>/</span> <strong>Speech Generator</strong>
+            Strategy <span>/</span> <strong>{activePage === "speech" ? "Speech Generator" : "Manifesto Generator"}</strong>
           </div>
           <div className="topbar-right">
             <span className="online-dot"></span>
@@ -163,7 +396,7 @@ function App() {
           </div>
         </header>
 
-        <section className="page-content">
+        <section className="page-content" style={{ display: activePage === "speech" ? "block" : "none" }}>
           <div className="page-heading">
             <div>
               <h1>AI Speech Generator</h1>
@@ -322,6 +555,7 @@ function App() {
             <span>Speech Generator · Prototype v1.0</span>
           </footer>
         </section>
+        {activePage === "manifesto" && <ManifestoPage />}
       </main>
     </div>
   );
