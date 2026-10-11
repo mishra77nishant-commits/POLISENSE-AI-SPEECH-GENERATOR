@@ -1,7 +1,7 @@
 import { useState } from "react";
 import "./App.css";
 
-const API_BASE_URL = "http://127.0.0.1:8000/api/speech";
+const API_BASE_URL = "https://polisense-ai-speech-generator.onrender.com/api/speech";
 
 function App() {
   const [template, setTemplate] = useState("Rally Speech");
@@ -65,7 +65,7 @@ function App() {
     } catch (err) {
       setError(
         err.message ||
-          "Could not connect to the backend. Ensure it is running at http://127.0.0.1:8000."
+          "Could not connect to the backend. Please try again in a moment."
       );
     } finally {
       setLoading(false);
@@ -267,7 +267,7 @@ function App() {
                 <button className="generate-button" type="submit" disabled={loading}>
                   {loading ? "Generating with AI..." : "✦ Generate Speech"}
                 </button>
-                <p className="form-note">Uses your POLISENSE backend and Groq AI. Keep the backend server running while using this app.</p>
+                <p className="form-note">Uses the deployed POLISENSE backend and Groq AI. The backend may take a moment to wake up on the first request.</p>
               </form>
             </section>
 
