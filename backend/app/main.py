@@ -23,12 +23,20 @@ app = FastAPI(
 )
 
 
-# Enable CORS for local development and deployed Vercel frontend
+# Enable CORS for local development and deployed frontends
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        # Local frontend
+        "http://localhost:8443",
+        "http://127.0.0.1:8443",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+
+        # Main POLISENSE AI frontend
+        "https://polisence-governance-ai.vercel.app",
+
+        # Existing deployment origins
         "https://polisense-ai-speech-generator.vercel.app",
         "https://polisense-ai-speech-generator-aur4118j3-polisence.vercel.app",
     ],
@@ -54,4 +62,5 @@ async def health_check():
     }
 
 
+# Register Speech Generator API routes
 app.include_router(speech_router)
